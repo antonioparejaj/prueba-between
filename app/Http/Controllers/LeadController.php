@@ -30,67 +30,54 @@ class LeadController extends Controller
             'phone' => 'nullable|string|max:20',
         ]);
 
-        $l = new Lead();
-        $l->name = $data['name'];
-        $l->email = $data['email'];
-        $l->phone = $data['phone'];
-        $l->save();
+        // Utilizo el método create de Eloquent para crear un nuevo Lead a partir de los datos validados.
+        $lead = Lead::create($data);
 
-        $c = new Client();
-        $c->lead_id = $l->id;
-        $c->save();
+        // Crear un nuevo Cliente asociado a este Lead
+        $client = new Client();
+        $client->lead_id = $lead->id;
+        $client->save();
 
         // Interact with external lead scoring system
-        $leadScoringService = new LeadScoringService();
-        $score = $leadScoringService->getLeadScore($l);
-        $l->score = $score;
-        $l->save();
+        $this->leadScoringService->scoreLead($lead);
 
         return 'Lead created successfully';
     }
 
-    public function show($id)
+    /*
+     En los métodos show, edit, update, y destroy, se utiliza la característica de Laravel
+     llamada "Route Model Binding" para inyectar el modelo Lead en lugar de buscar manualmente por id.
+
+     Se han eliminado las comprobaciones repetitivas para verificar si el Lead existe; en su lugar,
+      se utiliza "Route Model Binding". Esto hace el código más claro y fácil de entender.
+    */
+    public function show(Lead $lead)
     {
-        $lead = Lead::find($id);
-        if (!$lead) {
-            return 'Lead not found';
-        }
-        return view('leads.show', ['lead' => $lead]);
+        // Utilizo la función compact para pasar datos a las vistas, lo cual es una forma más concisa y legible.
+        return view('leads.show', compact('lead'));
     }
 
-    public function edit($id)
+    public function edit(Lead $lead)
     {
-        $lead = Lead::find($id);
-        if (!$lead) {
-            return 'Lead not found';
-        }
-        return view('leads.edit', ['lead' => $lead]);
+        return view('leads.edit', compact('lead'));
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, Lead $lead)
     {
-        $lead = Lead::find($id);
-        if (!$lead) {
-            return 'Lead not found';
-        }
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:clients,email,' . $lead->id,
+            'phone' => 'nullable|string|max:20',
+        ]);
 
-        $lead->name = $request->get('name');
-        $lead->email = $request->get('email');
-        $lead->phone = $request->get('phone');
-        $lead->save();
-
-        // Send lead to scoring system
-        $score = $this->leadScoringService->getLeadScore($lead);
+        $lead->update($data);
+        $this->leadScoringService->scoreLead($lead);
 
         return 'Lead updated successfully';
     }
 
-    public function destroy($id)
+    public function destroy(Lead $lead)
     {
-        $lead = Lead::find($id);
-        if (!$lead) {
-            return 'Lead not found';
-        }
         $lead->delete();
         return 'Lead deleted successfully';
     }
